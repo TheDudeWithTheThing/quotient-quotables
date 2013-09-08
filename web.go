@@ -63,11 +63,14 @@ func LoadHandler(res http.ResponseWriter, req *http.Request) {
     uri := strings.Split(file, ".")
     redisKey := "quote:" + uri[0]
 
-    client.Do("SET", "realname:" + uri[0], []byte(authorName))
-
     for _, quote := range splitFileContents {
       if len(quote) > 0  {
-        client.Do("SADD", redisKey, []byte(quote))
+        m := make(map[string]string)
+        m["author"] = string(authorName)
+        m["quote"] = string(quote)
+        value, _ := json.Marshal(m)
+
+        client.Do("SADD", redisKey, value)
       }
     }
   }
@@ -80,30 +83,19 @@ func QuoteHandler(res http.ResponseWriter, req *http.Request) {
   defer client.Close()
   vars := mux.Vars(req)
   author := vars["author"]
-  authorName, err := redis.String(client.Do("GET", "realname:" + author))
+  quote, err := redis.String(client.Do("SRANDMEMBER", "quote:" + author))
   if err != nil {
     http.NotFound(res, req)
   } else {
-    quote, _ := redis.String(client.Do("SRANDMEMBER", "quote:" + author))
-
-    m := make(map[string]string)
-    m["author"] = string(authorName)
-    m["quote"] = string(quote)
-    value, _ := json.Marshal(m)
-
     res.Header().Set("Content-type", "application/json; charset=utf-8")
-    fmt.Fprintln(res, string(value))
+    fmt.Fprintln(res, string(quote))
   }
 }
 
 func ParseRedistogoUrl() (string, string) {
   redisUrl := os.Getenv("REDISTOGO_URL")
-  fmt.Println(redisUrl)
-
   redisInfo, _ := url.Parse(redisUrl)
   server := redisInfo.Host
-  fmt.Println("SERVER " + server)
-
   password := ""
   if redisInfo.User != nil {
     password, _ = redisInfo.User.Password()
