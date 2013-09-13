@@ -1,4 +1,4 @@
 quotient-quotables
 ==================
 
-Me learning golang
+Me learning golang.
